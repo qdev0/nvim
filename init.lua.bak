@@ -1,0 +1,241 @@
+-- init.lua configuration for Neovim with lazy.nvim, Mason, LSP, Treesitter, and which-key
+
+-- Install lazy.nvim if not already installed
+local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
+if not vim.loop.fs_stat(lazypath) then
+  -- Bootstrap lazy.nvim
+  vim.fn.system({
+    "git",
+    "clone",
+    "--filter=blob:none",
+    "https://github.com/folke/lazy.nvim.git",
+    lazypath,
+  })
+end
+vim.opt.rtp:prepend(lazypath)
+
+-- Set leader key to space
+vim.g.mapleader = ' '
+vim.g.maplocalleader = ' '
+
+-- Plugin setup using lazy.nvim
+require('lazy').setup({
+  -- Mason for managing external tools
+  { 'williamboman/mason.nvim', config = true },
+
+  -- Mason LSP config
+  { 'williamboman/mason-lspconfig.nvim', dependencies = { 'williamboman/mason.nvim' } },
+
+  -- LSP configurations
+  { 'neovim/nvim-lspconfig', dependencies = { 'williamboman/mason-lspconfig.nvim' } },
+
+  -- Autocompletion plugins
+  { 'hrsh7th/nvim-cmp' },
+  { 'hrsh7th/cmp-nvim-lsp' },
+  { 'hrsh7th/cmp-buffer' },
+  { 'hrsh7th/cmp-path' },
+  { 'hrsh7th/cmp-cmdline' },
+
+  -- Snippet engine
+  { 'L3MON4D3/LuaSnip' },
+
+  -- Telescope for file navigation
+  { 'nvim-telescope/telescope.nvim', dependencies = { 'nvim-lua/plenary.nvim' } },
+
+  -- Which-Key for displaying available keybindings
+  { 'folke/which-key.nvim', config = function()
+      require('which-key').setup {
+        -- your configuration comes here
+        -- or leave it empty to use the default settings
+      }
+    end,
+  },
+
+  -- Treesitter for enhanced syntax highlighting and parsing
+  { 'nvim-treesitter/nvim-treesitter', build = ':TSUpdate' },
+
+  -- Additional plugins for enhanced IntelliJ-like controls
+  { 'nvim-tree/nvim-tree.lua', dependencies = { 'nvim-tree/nvim-web-devicons' } },
+  { 'akinsho/bufferline.nvim', dependencies = 'nvim-tree/nvim-web-devicons', config = true },
+})
+
+-- Mason setup
+require('mason').setup()
+
+-- Ensure LSP servers are installed
+require('mason-lspconfig').setup({
+  ensure_installed = {
+    'jdtls',        -- Java
+    'ts_ls',        -- Types:
+    'volar',        -- Vue
+    'svelte',       -- Svelte
+    'bashls',       -- Bash
+    'dockerls',     -- Docker
+    'yamlls',       -- YAML
+    'lemminx',      -- XML
+    'jsonls',       -- JSON
+  },
+})
+
+-- Treesitter setup
+require('nvim-treesitter.configs').setup {
+  ensure_installed = {
+    "lua",
+    "java",
+    "javascript",
+    "typescript",
+    "vue",
+    "svelte",
+    "bash",
+    "dockerfile",
+    "yaml",
+    "json",
+    "xml",
+    -- Add more languages as needed
+  },
+  highlight = {
+    enable = true,              -- Enable syntax highlighting
+    additional_vim_regex_highlighting = false,
+  },
+  indent = {
+    enable = true,              -- Enable indentation
+  },
+}
+
+-- LSP configurations
+local lspconfig = require('lspconfig')
+
+-- Replace 'tsserver' with 'typescript' if 'ts_ls' is not recognized
+-- Verify the correct LSP server name based on your lspconfig version
+-- You might need to use 'tsserver' if 'typescript' is not available
+local servers = { 'jdtls', 'typescript', 'volar', 'svelte', 'bashls', 'dockerls', 'yamlls', 'lemminx', 'jsonls' }
+
+-- Check if 'ts_ls' is the correct server name
+-- If not, use 'typescript' or revert to 'tsserver'
+-- For demonstration, we'll assume 'typescript' is correct
+-- Replace 'typescript' with 'ts_ls' if that's the new recommended server
+
+-- nvim-cmp setup for autocompletion
+local cmp = require('cmp')
+cmp.setup({
+  snippet = {
+    expand = function(args)
+      require('luasnip').lsp_expand(args.body)  -- Use LuaSnip
+    end,
+  },
+  mapping = {
+    ['<C-b>'] = cmp.mapping.scroll_docs(-4),  -- Scroll up in documentation
+    ['<C-f>'] = cmp.mapping.scroll_docs(4),   -- Scroll down in documentation
+    ['<C-Space>'] = cmp.mapping.complete(),   -- Trigger completion
+    ['<C-e>'] = cmp.mapping.abort(),          -- Abort completion
+    ['<CR>'] = cmp.mapping.confirm({ select = true }),  -- Confirm selection
+  },
+  sources = cmp.config.sources({
+    { name = 'nvim_lsp' },  -- LSP completions
+  }, {
+    { name = 'buffer' },    -- Buffer completions
+  })
+})
+
+-- Setup nvim-cmp for command line
+cmp.setup.cmdline(':', {
+  sources = cmp.config.sources({
+    { name = 'cmdline' }
+  }, {
+    { name = 'path' }
+  })
+})
+
+-- Capabilities for LSP servers
+local capabilities = require('cmp_nvim_lsp').default_capabilities()
+
+-- Function to attach to LSP servers
+local on_attach = function(client, bufnr)
+  local opts = { noremap=true, silent=true }
+
+  -- Define key mappings for LSP
+  local keymap = vim.api.nvim_buf_set_keymap
+  keymap(bufnr, 'n', '<F2>', '<Cmd>lua vim.lsp.buf.rename()<CR>', opts)                -- Rename symbol
+  keymap(bufnr, 'n', '<A-Enter>', '<Cmd>lua vim.lsp.buf.code_action()<CR>', opts)      -- Code action
+  keymap(bufnr, 'n', 'gd', '<Cmd>lua vim.lsp.buf.definition()<CR>', opts)              -- Go to definition
+  keymap(bufnr, 'n', 'gD', '<Cmd>lua vim.lsp.buf.declaration()<CR>', opts)             -- Go to declaration
+  keymap(bufnr, 'n', 'gr', '<Cmd>lua vim.lsp.buf.references()<CR>', opts)              -- Find references
+  keymap(bufnr, 'n', 'K', '<Cmd>lua vim.lsp.buf.hover()<CR>', opts)                    -- Hover documentation
+  keymap(bufnr, 'n', '<Leader>F', '<Cmd>lua vim.lsp.buf.format({async=true})<CR>', opts) -- Format code
+
+  -- Set up which-key mappings
+  local wk = require('which-key')
+  wk.register({
+    f = {
+      name = "File",
+      p = { "<Cmd>Telescope find_files<CR>", "Find Files" },
+      f = { "<Cmd>Telescope live_grep<CR>", "Live Grep" },
+      e = { "<Cmd>Telescope oldfiles<CR>", "Recent Files" },
+      b = { "<Cmd>Telescope buffers<CR>", "List Buffers" },
+      h = { "<Cmd>Telescope help_tags<CR>", "Help Tags" },
+    },
+    l = {
+      name = "LSP",
+      r = { "<Cmd>lua vim.lsp.buf.rename()<CR>", "Rename" },
+      a = { "<Cmd>lua vim.lsp.buf.code_action()<CR>", "Code Action" },
+      d = { "<Cmd>lua vim.lsp.buf.definition()<CR>", "Go to Definition" },
+      D = { "<Cmd>lua vim.lsp.buf.declaration()<CR>", "Go to Declaration" },
+      R = { "<Cmd>lua vim.lsp.buf.references()<CR>", "Find References" },
+      K = { "<Cmd>lua vim.lsp.buf.hover()<CR>", "Hover Documentation" },
+      F = { "<Cmd>lua vim.lsp.buf.format({async=true})<CR>", "Format Code" },
+    },
+    g = {
+      name = "Git",
+      -- Add git related keybindings here
+    },
+    b = {
+      name = "Buffer",
+      -- Add buffer related keybindings here
+    },
+    -- Add more groups as needed
+  }, { prefix = "<Leader>" })
+end
+
+-- Setup LSP servers with lspconfig
+for _, lsp in ipairs(servers) do
+  -- Handle specific server configurations if needed
+  if lsp == 'typescript' then
+    lspconfig.tsserver.setup {
+      on_attach = on_attach,
+      capabilities = capabilities,
+      -- Additional settings for TypeScript can be added here
+    }
+  else
+    lspconfig[lsp].setup {
+      on_attach = on_attach,
+      capabilities = capabilities,
+    }
+  end
+end
+
+-- Key mappings for Telescope and other functionalities
+local opts = { noremap=true, silent=true }
+vim.api.nvim_set_keymap('n', '<Leader>p', '<Cmd>Telescope find_files<CR>', opts)    -- Find files
+vim.api.nvim_set_keymap('n', '<Leader>f', '<Cmd>Telescope live_grep<CR>', opts)    -- Live grep
+vim.api.nvim_set_keymap('n', '<Leader>e', '<Cmd>Telescope oldfiles<CR>', opts)     -- Recent files
+vim.api.nvim_set_keymap('n', '<Leader>b', '<Cmd>Telescope buffers<CR>', opts)      -- List open buffers
+vim.api.nvim_set_keymap('n', '<Leader>h', '<Cmd>Telescope help_tags<CR>', opts)    -- Help tags
+
+-- Diagnostics navigation
+vim.api.nvim_set_keymap('n', '<F8>', '<Cmd>lua vim.diagnostic.goto_next()<CR>', opts)      -- Next diagnostic
+vim.api.nvim_set_keymap('n', '<S-F8>', '<Cmd>lua vim.diagnostic.goto_prev()<CR>', opts)    -- Previous diagnostic
+
+-- Enable which-key
+require('which-key').setup {
+  -- your configuration comes here
+  -- or leave it empty to use the default settings
+}
+
+-- Setup bufferline
+require('bufferline').setup{}
+
+-- Setup nvim-tree
+require('nvim-tree').setup{}
+
+-- Additional settings can be added below
+
